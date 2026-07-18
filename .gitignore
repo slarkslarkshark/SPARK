@@ -1,5 +1,6 @@
 # Local notebooks and experiments
 notebooks/
+data/
 
 # IDE
 .vscode/
