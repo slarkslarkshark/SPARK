@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SPARK — {% block title %}Синхронизация книги и аудио{% endblock %}</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html {
+            min-height: 100%;
+            background: linear-gradient(to bottom, #faf7f0, #ede4d3);
+        }
+        body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.5;
+               max-width: 700px; margin: 0 auto; padding: 1rem; color: #222;
+               min-height: 100vh; }
+        a, a:visited { color: #2563eb; }
+        nav { margin-bottom: 1.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid #ddd; }
+        nav a, nav a:visited { text-decoration: none; margin-right: 1rem; }
+        nav a:hover { text-decoration: underline; }
+        h1 { font-size: 1.3rem; margin-bottom: 1rem; }
+        h2 { font-size: 1.1rem; margin: 1rem 0 0.5rem; }
+        label { display: block; margin: 0.5rem 0 0.2rem; font-weight: 600; }
+        input, select, button { font-size: 1rem; padding: 0.4rem 0.6rem; width: 100%;
+                                border: 1px solid #ccc; border-radius: 4px; }
+        button { background: #2563eb; color: #fff; border: none; cursor: pointer;
+                 margin-top: 0.8rem; font-weight: 600; }
+        button:hover { background: #1d4ed8; }
+        .result { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
+                  padding: 0.4rem 0.8rem; margin-top: 0.4rem; }
+        .result dt { font-weight: 600; margin-top: 0.2rem; }
+        .result dt:first-child { margin-top: 0; }
+        .result dl { margin: 0; }
+        .result dd { margin-left: 0; color: #444; }
+        .error { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5;
+                 border-radius: 4px; padding: 0.8rem; margin: 1rem 0; }
+        .error ul { margin: 0.3rem 0 0 1.2rem; }
+        .quote { font-style: italic; color: #555; }
+        .meta { color: #888; font-size: 0.85rem; }
+        .section { color: #666; font-size: 0.9rem; }
+        {% block extra_style %}{% endblock %}
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/">Книги</a>
+        <a href="/manage/import">Импорт</a>
+        <a href="/about">О проекте</a>
+    </nav>
+    {% block content %}{% endblock %}
+</body>
+</html>

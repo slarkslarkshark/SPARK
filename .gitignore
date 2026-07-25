@@ -16,6 +16,8 @@ docs/
 plans/
 outputs/
 data/
+tools/
+runtime_data/
 
 ### PyCharm template
 

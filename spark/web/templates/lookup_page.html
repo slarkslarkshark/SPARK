@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Страница → аудио{% endblock %}
+{% block content %}
+<p style="margin-bottom:0.5rem;"><a href="/">&larr; Назад к списку книг</a></p>
+<h1>{{ book_title or book_id }}</h1>
+<h2>📖 Страница → аудио</h2>
+
+<form method="get">
+    <label for="page">Номер страницы</label>
+    <input type="number" id="page" name="page" placeholder="79" min="1" value="{{ page_number or '' }}" required>
+    <button type="submit">Найти аудио</button>
+</form>
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+{% if matched_page %}
+<div class="result">
+    <dl>
+        <dt>Страница</dt>
+        <dd>{{ matched_page }} <span class="meta">({{ page_source }})</span></dd>
+        <dt>Секция</dt>
+        <dd class="section">{{ section }}</dd>
+        {% if file_name %}
+        <dt>Аудиофайл</dt>
+        <dd>{{ file_name }}</dd>
+        <dt>Глобальный таймкод</dt>
+        <dd>{{ global_time }}</dd>
+        <dt>Локальный таймкод</dt>
+        <dd>{{ local_time }}</dd>
+        {% endif %}
+        {% if score %}
+        <dt>Надёжность</dt>
+        <dd class="meta">{{ "%.0f"|format(score|float * 100) }}%</dd>
+        {% endif %}
+        <dt>Цитата</dt>
+        <dd class="quote">«{{ quote }}»</dd>
+    </dl>
+</div>
+{% endif %}
+{% endblock %}

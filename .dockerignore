@@ -1,0 +1,13 @@
+__pycache__
+*.pyc
+.git
+.agents
+data/
+outputs/
+plans/
+docs/
+runtime_data/
+test_data/
+*.sparkbook
+.ipynb_checkpoints
+*.ipynb

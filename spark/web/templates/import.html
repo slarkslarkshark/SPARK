@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Импорт книги{% endblock %}
+{% block content %}
+<h1>Импорт книги</h1>
+<p>Выберите файл <code>.sparkbook</code> для импорта в runtime.</p>
+
+<form method="post" enctype="multipart/form-data">
+    <label for="file">Файл .sparkbook</label>
+    <input type="file" id="file" name="file" accept=".sparkbook" required>
+    <button type="submit">Загрузить и проверить</button>
+</form>
+
+{% if error %}
+<div class="error">
+    <p>{{ error }}</p>
+    {% if validation_errors %}
+    <ul>
+        {% for e in validation_errors %}
+        <li>{{ e }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Книги{% endblock %}
+{% block content %}
+<h1>SPARK — Книги</h1>
+
+{% if books %}
+    <ul style="list-style:none;padding:0;">
+    {% for b in books %}
+    <li style="margin-bottom:1.5rem;padding:0.8rem;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;display:flex;gap:0.8rem;">
+        <div class="book-cover" data-book-id="{{ b.book_id }}" style="flex-shrink:0;position:relative;cursor:pointer;" title="Клик для загрузки обложки">
+            <img src="/manage/{{ b.book_id }}/cover" alt="" width="100" height="150" style="border-radius:4px;object-fit:cover;border:1px solid #94a3b8;">
+            <button class="cover-delete" title="Удалить обложку"
+                    style="position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:10px;
+                           background:rgba(0,0,0,0.5);color:#fff;border:none;font-size:12px;line-height:20px;
+                           text-align:center;cursor:pointer;padding:0;margin:0;display:none;opacity:0.8;">✕</button>
+            <input type="file" accept="image/*" style="display:none;">
+        </div>
+        <div style="flex:1;min-width:0;">
+        <strong class="book-title" data-book-id="{{ b.book_id }}"
+                data-url="/manage/{{ b.book_id }}/rename"
+                title="Двойной клик для переименования"
+                style="cursor:default;">{{ b.title }}</strong>
+        <div class="meta">Версия {{ b.active_version }} &middot; импортирована {{ b.imported_at[:10] }}</div>
+        <div style="margin-top:0.5rem;">
+            <a href="/books/{{ b.book_id }}/lookup/audio">🎧 Аудио → 📖 Страница</a>
+            &nbsp;&middot;&nbsp;
+            <a href="/books/{{ b.book_id }}/lookup/page">📖 Страница → 🎧 Аудио</a>
+        </div>
+        <div style="margin-top:0.6rem;display:flex;gap:0.3rem;">
+            {% if b.previous_version is not none %}
+            <div style="margin-top:0.3rem;">
+            <form method="post" action="/manage/{{ b.book_id }}/rollback" style="display:inline;">
+                <button style="font-size:0.75rem;padding:0.15rem 0.4rem;width:auto;background:#f59e0b;color:#fff;border:none;border-radius:3px;cursor:pointer;">
+                    ↩ Откатить к v{{ b.previous_version }}
+                </button>
+            </form>
+            </div>
+            {% endif %}
+            <div style="margin-top:{% if b.previous_version is not none %}0.3rem{% else %}0.6rem{% endif %};display:flex;gap:0.3rem;">
+            <a href="/manage/{{ b.book_id }}/export">
+                <button type="button" style="font-size:0.75rem;padding:0.15rem 0.4rem;width:auto;background:#2563eb;color:#fff;border:none;border-radius:3px;cursor:pointer;">
+                    ⬇ Скачать
+                </button>
+            </a>
+            <form method="post" action="/manage/{{ b.book_id }}/delete" style="display:inline;"
+                  onsubmit="return confirm('Удалить «{{ b.title }}» и все её версии?')">
+                <button style="font-size:0.75rem;padding:0.15rem 0.4rem;width:auto;background:#dc2626;color:#fff;border:none;border-radius:3px;cursor:pointer;">
+                    ✕ Удалить
+                </button>
+            </form>
+            </div>
+        </div>
+        </div>
+    </li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>Нет импортированных книг.</p>
+    <p><a href="/manage/import">Импортировать .sparkbook</a></p>
+{% endif %}
+
+<script>
+// Inline-редактирование названия книги по двойному клику
+function makeEditable(el) {
+    el.addEventListener('dblclick', function() {
+        var oldTitle = el.textContent.trim();
+        var url = el.dataset.url;
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.value = oldTitle;
+        input.style.cssText = 'font-size:1rem;font-weight:600;padding:0.1rem 0.3rem;width:100%;max-width:300px;border:1px solid #2563eb;border-radius:3px;';
+        el.replaceWith(input);
+        input.focus();
+        input.select();
+
+        function restore() {
+            var span = document.createElement('strong');
+            span.className = 'book-title';
+            span.dataset.bookId = el.dataset.bookId;
+            span.dataset.url = url;
+            span.title = 'Двойной клик для переименования';
+            span.style.cursor = 'default';
+            span.textContent = oldTitle;
+            input.replaceWith(span);
+            makeEditable(span);
+        }
+
+        function save() {
+            var newTitle = input.value.trim();
+            if (newTitle && newTitle !== oldTitle) {
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = url;
+                form.style.display = 'none';
+                var field = document.createElement('input');
+                field.name = 'title';
+                field.value = newTitle;
+                form.appendChild(field);
+                document.body.appendChild(form);
+                form.submit();
+            } else {
+                restore();
+            }
+        }
+
+        input.addEventListener('blur', save);
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') input.blur();
+            if (e.key === 'Escape') restore();
+        });
+    });
+}
+document.querySelectorAll('.book-title').forEach(makeEditable);
+
+// Загрузка обложки по клику
+document.querySelectorAll('.book-cover').forEach(function(el) {
+    var input = el.querySelector('input');
+    var img = el.querySelector('img');
+    var btn = el.querySelector('.cover-delete');
+    var bookId = el.dataset.bookId;
+
+    // Показываем крестик при наведении
+    el.addEventListener('mouseenter', function() { btn.style.display = 'block'; });
+    el.addEventListener('mouseleave', function() { btn.style.display = 'none'; });
+
+    // Клик по обложке — загрузка новой
+    el.addEventListener('click', function(e) {
+        if (e.target === btn) return;
+        input.click();
+    });
+
+    input.addEventListener('change', function() {
+        var file = input.files[0];
+        if (!file) return;
+        var form = new FormData();
+        form.append('file', file);
+
+        fetch('/manage/' + bookId + '/cover', { method: 'POST', body: form })
+            .then(function() {
+                img.src = '/manage/' + bookId + '/cover?' + Date.now();
+            });
+    });
+
+    // Крестик — удаление обложки
+    btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (!confirm('Удалить обложку?')) return;
+        var form = new FormData();
+        fetch('/manage/' + bookId + '/cover/delete', { method: 'POST', body: form })
+            .then(function() {
+                img.src = '/manage/' + bookId + '/cover?' + Date.now();
+            });
+    });
+});
+</script>
+{% endblock %}

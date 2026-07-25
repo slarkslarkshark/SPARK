@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Аудио → страница{% endblock %}
+{% block content %}
+<p style="margin-bottom:0.5rem;"><a href="/">&larr; Назад к списку книг</a></p>
+<h1>{{ book_title or book_id }}</h1>
+<h2>🎧 Аудиотаймкод → страница</h2>
+
+<form method="get">
+    <label for="time">Глобальный таймкод</label>
+    <input type="text" id="time" name="time" placeholder="ЧЧ:ММ:СС" value="{{ input_time or '' }}" required>
+    <button type="submit">Найти страницу</button>
+</form>
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+{% if page_number %}
+<div class="result">
+    <dl>
+        <dt>Страница</dt>
+        <dd>{{ page_number }} <span class="meta">({{ page_source }})</span></dd>
+        <dt>Секция</dt>
+        <dd class="section">{{ section }}</dd>
+        <dt>Аудиофайл</dt>
+        <dd>{{ file_name }}</dd>
+        <dt>Глобальный таймкод</dt>
+        <dd>{{ global_time }}</dd>
+        <dt>Локальный таймкод</dt>
+        <dd>{{ local_time }}</dd>
+        <dt>Надёжность</dt>
+        <dd class="meta">{{ "%.0f"|format(score|float * 100) }}%</dd>
+        <dt>Цитата</dt>
+        <dd class="quote">«{{ quote }}»</dd>
+    </dl>
+</div>
+{% endif %}
+{% endblock %}
