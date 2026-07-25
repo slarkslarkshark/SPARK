@@ -42,6 +42,21 @@ def create_app(data_root: str) -> FastAPI:
         tmpl = _jinja().get_template("index.html")
         return HTMLResponse(tmpl.render(books=catalog.list_all()))
 
+    # Иконка сайта
+    @app.get("/favicon.ico")
+    @app.get("/favicon.svg")
+    def favicon():
+        svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
+            '<rect x="4" y="2" width="24" height="28" rx="2" fill="#8b4513"/>'
+            '<rect x="7" y="5" width="13" height="2" rx="0.5" fill="#f5deb3" opacity="0.9"/>'
+            '<rect x="7" y="9" width="13" height="2" rx="0.5" fill="#f5deb3" opacity="0.7"/>'
+            '<rect x="7" y="13" width="9" height="2" rx="0.5" fill="#f5deb3" opacity="0.5"/>'
+            '<line x1="20" y1="2" x2="20" y2="30" stroke="#6b3410" stroke-width="0.5"/>'
+            '</svg>'
+        )
+        return HTMLResponse(content=svg, media_type="image/svg+xml")
+
     # О проекте
     @app.get("/about")
     def about():
