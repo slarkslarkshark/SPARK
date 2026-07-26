@@ -4,8 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Form, Request, UploadFile
-from fastapi.responses import FileResponse
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from jinja2 import Environment, FileSystemLoader
 
 from spark.adapters.book_repo import BookRepo
@@ -22,6 +21,20 @@ def _jinja(request: Request):
     return Environment(loader=FileSystemLoader(str(templates_dir)))
 
 
+def _redirect(request: Request, path: str, status_code: int = 303) -> RedirectResponse:
+    """Редирект с учётом root_path."""
+    root = request.app.state.root_path
+    url = root + path
+    return RedirectResponse(url=url, status_code=status_code)
+
+
+def _render(request: Request, template: str, **kwargs):
+    """Рендерит шаблон с root_path."""
+    tmpl = _jinja(request).get_template(template)
+    kwargs.setdefault("root_path", request.app.state.root_path)
+    return HTMLResponse(tmpl.render(**kwargs))
+
+
 def _data_root(request: Request) -> Path:
     return request.app.state.data_root
 
@@ -29,22 +42,17 @@ def _data_root(request: Request) -> Path:
 @router.get("/import")
 def import_form(request: Request):
     """Форма загрузки .sparkbook."""
-    jinja = _jinja(request)
-    tmpl = jinja.get_template("import.html")
-    return HTMLResponse(tmpl.render())
+    return _render(request, "import.html")
 
 
 @router.post("/import")
 async def import_upload(request: Request, file: UploadFile):
     """Приём архива, чтение manifest, валидация."""
-    jinja = _jinja(request)
     data_root = _data_root(request)
 
     if not file.filename or not file.filename.endswith(".sparkbook"):
-        tmpl = jinja.get_template("import.html")
-        return HTMLResponse(
-            tmpl.render(error="Принимаются только файлы .sparkbook")
-        )
+        return _render(request, "import.html",
+                       error="Принимаются только файлы .sparkbook")
 
     # Сохраняем в staging
     zip_bytes = await file.read()
@@ -60,30 +68,20 @@ async def import_upload(request: Request, file: UploadFile):
         )
     except Exception as e:
         staging.cleanup(upload_id)
-        tmpl = jinja.get_template("import.html")
-        return HTMLResponse(
-            tmpl.render(error=f"Ошибка чтения пакета: {e}")
-        )
+        return _render(request, "import.html",
+                       error=f"Ошибка чтения пакета: {e}")
 
     if not validation.is_valid:
         staging.cleanup(upload_id)
-        tmpl = jinja.get_template("import.html")
-        return HTMLResponse(
-            tmpl.render(
-                error="Пакет не прошёл валидацию",
-                validation_errors=validation.errors,
-            )
-        )
+        return _render(request, "import.html",
+                       error="Пакет не прошёл валидацию",
+                       validation_errors=validation.errors)
 
     # Показываем manifest для подтверждения
-    tmpl = jinja.get_template("import_confirm.html")
-    return HTMLResponse(
-        tmpl.render(
-            upload_id=upload_id,
-            manifest=manifest,
-            is_update=manifest.operation == "update",
-        )
-    )
+    return _render(request, "import_confirm.html",
+                   upload_id=upload_id,
+                   manifest=manifest,
+                   is_update=manifest.operation == "update")
 
 
 @router.post("/import/confirm")
@@ -97,7 +95,6 @@ def import_confirm(
 
     Название книги = «Название — Автор» (если автор указан).
     """
-    jinja = _jinja(request)
     data_root = _data_root(request)
 
     staging = StagingArea(str(data_root / "staging"))
@@ -113,17 +110,12 @@ def import_confirm(
         )
         if not validation.is_valid:
             staging.cleanup(upload_id)
-            tmpl = jinja.get_template("import.html")
-            return HTMLResponse(
-                tmpl.render(
-                    error="Валидация не пройдена",
-                    validation_errors=validation.errors,
-                )
-            )
+            return _render(request, "import.html",
+                           error="Валидация не пройдена",
+                           validation_errors=validation.errors)
     except Exception as e:
         staging.cleanup(upload_id)
-        tmpl = jinja.get_template("import.html")
-        return HTMLResponse(tmpl.render(error=str(e)))
+        return _render(request, "import.html", error=str(e))
 
     # Обновляем manifest с пользовательскими правками названия и автора
     manifest.title = title.strip() or manifest.title
@@ -138,10 +130,8 @@ def import_confirm(
         )
     except Exception as e:
         staging.cleanup(upload_id)
-        tmpl = jinja.get_template("import.html")
-        return HTMLResponse(
-            tmpl.render(error=f"Ошибка при импорте: {e}")
-        )
+        return _render(request, "import.html",
+                       error=f"Ошибка при импорте: {e}")
 
     # Обновляем каталог
     now = datetime.now(timezone.utc).isoformat()
@@ -162,7 +152,6 @@ def import_confirm(
         catalog.register_new(entry)
         catalog_repo.add_or_update(entry)
     else:
-        # Обновление: сохраняем предыдущую версию
         existing = catalog.get_active(manifest.book_id)
         catalog.activate_version(
             manifest.book_id, manifest.version, book_path
@@ -175,8 +164,7 @@ def import_confirm(
             previous_path=existing.active_path,
         )
 
-    # Всё ок, staging больше не нужен (перемещён commit'ом)
-    return RedirectResponse(url="/", status_code=303)
+    return _redirect(request, "/")
 
 
 @router.post("/{book_id}/rollback")
@@ -189,7 +177,7 @@ def rollback(request: Request, book_id: str):
 
     entry = catalog.get_active(book_id)
     if entry is None:
-        return RedirectResponse(url="/", status_code=303)
+        return _redirect(request, "/")
 
     try:
         catalog.rollback(book_id)
@@ -201,9 +189,9 @@ def rollback(request: Request, book_id: str):
             previous_path=entry.active_path,
         )
     except ValueError:
-        pass  # Нет предыдущей версии — молча игнорируем
+        pass
 
-    return RedirectResponse(url="/", status_code=303)
+    return _redirect(request, "/")
 
 
 @router.post("/{book_id}/delete")
@@ -217,18 +205,16 @@ def delete_book(request: Request, book_id: str):
 
     entry = catalog.get_active(book_id)
     if entry is None:
-        return RedirectResponse(url="/", status_code=303)
+        return _redirect(request, "/")
 
-    # Удаляем файлы книги
     book_dir = data_root / "books" / book_id
     if book_dir.exists():
         shutil.rmtree(str(book_dir))
 
-    # Удаляем из каталога
     catalog.remove(book_id)
     catalog_repo.delete_entry(book_id)
 
-    return RedirectResponse(url="/", status_code=303)
+    return _redirect(request, "/")
 
 
 @router.post("/{book_id}/rename")
@@ -245,7 +231,7 @@ def rename_book(
 
     new_title = title.strip()
     if not new_title:
-        return RedirectResponse(url="/", status_code=303)
+        return _redirect(request, "/")
 
     try:
         catalog.rename(book_id, new_title)
@@ -253,7 +239,7 @@ def rename_book(
     except ValueError:
         pass
 
-    return RedirectResponse(url="/", status_code=303)
+    return _redirect(request, "/")
 
 
 @router.get("/{book_id}/cover")
@@ -266,11 +252,10 @@ def get_cover(request: Request, book_id: str):
 
     entry = catalog.get_active(book_id)
     if entry is None:
-        return RedirectResponse(url="/", status_code=303)
+        return _redirect(request, "/")
 
     cover_path = Path(entry.active_path).parent / "cover.jpg"
     if not cover_path.is_file():
-        # Пустой SVG-заглушка
         from fastapi.responses import Response
         svg = (
             '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="150">'
@@ -293,17 +278,16 @@ async def upload_cover(request: Request, book_id: str, file: UploadFile):
 
     entry = catalog.get_active(book_id)
     if entry is None:
-        return RedirectResponse(url="/", status_code=303)
+        return _redirect(request, "/")
 
-    # Принимаем только изображения
     if not file.filename or not file.content_type or not file.content_type.startswith("image/"):
-        return RedirectResponse(url="/", status_code=303)
+        return _redirect(request, "/")
 
     cover_path = Path(entry.active_path).parent / "cover.jpg"
     content = await file.read()
     cover_path.write_bytes(content)
 
-    return RedirectResponse(url="/", status_code=303)
+    return _redirect(request, "/")
 
 
 @router.post("/{book_id}/cover/delete")
@@ -316,19 +300,18 @@ def delete_cover(request: Request, book_id: str):
 
     entry = catalog.get_active(book_id)
     if entry is None:
-        return RedirectResponse(url="/", status_code=303)
+        return _redirect(request, "/")
 
     cover_path = Path(entry.active_path).parent / "cover.jpg"
     cover_path.unlink(missing_ok=True)
 
-    return RedirectResponse(url="/", status_code=303)
+    return _redirect(request, "/")
 
 
 @router.get("/{book_id}/export")
 def export_book(request: Request, book_id: str):
     """Скачать книгу как .sparkbook."""
     import tempfile
-    from fastapi.responses import FileResponse
 
     data_root = _data_root(request)
     catalog_path = str(data_root / "catalog.sqlite")
@@ -337,19 +320,17 @@ def export_book(request: Request, book_id: str):
 
     entry = catalog.get_active(book_id)
     if entry is None:
-        return RedirectResponse(url="/", status_code=303)
+        return _redirect(request, "/")
 
-    # Директория с book.sqlite и manifest.json
     book_dir = Path(entry.active_path).parent
 
-    # Собираем .sparkbook во временный файл
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".sparkbook")
     try:
         from spark.adapters.package_builder import PackageBuilder
         PackageBuilder().build_from_dir(str(book_dir), tmp.name)
     except Exception:
         Path(tmp.name).unlink(missing_ok=True)
-        return RedirectResponse(url="/", status_code=303)
+        return _redirect(request, "/")
 
     filename = f"{entry.book_id}-{entry.active_version}.sparkbook"
     return FileResponse(

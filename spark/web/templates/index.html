@@ -8,7 +8,7 @@
     {% for b in books %}
     <li style="margin-bottom:1.5rem;padding:0.8rem;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;display:flex;gap:0.8rem;">
         <div class="book-cover" data-book-id="{{ b.book_id }}" style="flex-shrink:0;position:relative;cursor:pointer;" title="Клик для загрузки обложки">
-            <img src="/manage/{{ b.book_id }}/cover" alt="" width="100" height="150" style="border-radius:4px;object-fit:cover;border:1px solid #94a3b8;">
+            <img src="{{ root_path }}/manage/{{ b.book_id }}/cover" alt="" width="100" height="150" style="border-radius:4px;object-fit:cover;border:1px solid #94a3b8;">
             <button class="cover-delete" title="Удалить обложку"
                     style="position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:10px;
                            background:rgba(0,0,0,0.5);color:#fff;border:none;font-size:12px;line-height:20px;
@@ -17,19 +17,19 @@
         </div>
         <div style="flex:1;min-width:0;">
         <strong class="book-title" data-book-id="{{ b.book_id }}"
-                data-url="/manage/{{ b.book_id }}/rename"
+                data-url="{{ root_path }}/manage/{{ b.book_id }}/rename"
                 title="Двойной клик для переименования"
                 style="cursor:default;">{{ b.title }}</strong>
         <div class="meta">Версия {{ b.active_version }} &middot; импортирована {{ b.imported_at[:10] }}</div>
         <div style="margin-top:0.5rem;">
-            <a href="/books/{{ b.book_id }}/lookup/audio">🎧 Аудио → 📖 Страница</a>
+            <a href="{{ root_path }}/books/{{ b.book_id }}/lookup/audio">🎧 Аудио → 📖 Страница</a>
             &nbsp;&middot;&nbsp;
-            <a href="/books/{{ b.book_id }}/lookup/page">📖 Страница → 🎧 Аудио</a>
+            <a href="{{ root_path }}/books/{{ b.book_id }}/lookup/page">📖 Страница → 🎧 Аудио</a>
         </div>
         <div style="margin-top:0.6rem;display:flex;gap:0.3rem;">
             {% if b.previous_version is not none %}
             <div style="margin-top:0.3rem;">
-            <form method="post" action="/manage/{{ b.book_id }}/rollback" style="display:inline;">
+            <form method="post" action="{{ root_path }}/manage/{{ b.book_id }}/rollback" style="display:inline;">
                 <button style="font-size:0.75rem;padding:0.15rem 0.4rem;width:auto;background:#f59e0b;color:#fff;border:none;border-radius:3px;cursor:pointer;">
                     ↩ Откатить к v{{ b.previous_version }}
                 </button>
@@ -37,12 +37,12 @@
             </div>
             {% endif %}
             <div style="margin-top:{% if b.previous_version is not none %}0.3rem{% else %}0.6rem{% endif %};display:flex;gap:0.3rem;">
-            <a href="/manage/{{ b.book_id }}/export">
+            <a href="{{ root_path }}/manage/{{ b.book_id }}/export">
                 <button type="button" style="font-size:0.75rem;padding:0.15rem 0.4rem;width:auto;background:#2563eb;color:#fff;border:none;border-radius:3px;cursor:pointer;">
                     ⬇ Скачать
                 </button>
             </a>
-            <form method="post" action="/manage/{{ b.book_id }}/delete" style="display:inline;"
+            <form method="post" action="{{ root_path }}/manage/{{ b.book_id }}/delete" style="display:inline;"
                   onsubmit="return confirm('Удалить «{{ b.title }}» и все её версии?')">
                 <button style="font-size:0.75rem;padding:0.15rem 0.4rem;width:auto;background:#dc2626;color:#fff;border:none;border-radius:3px;cursor:pointer;">
                     ✕ Удалить
@@ -56,10 +56,16 @@
     </ul>
 {% else %}
     <p>Нет импортированных книг.</p>
-    <p><a href="/manage/import">Импортировать .sparkbook</a></p>
+    <p><a href="{{ root_path }}/manage/import">Импортировать .sparkbook</a></p>
 {% endif %}
 
 <script>
+var SPARK_ROOT = "{{ root_path }}";
+
+function sparkUrl(path) {
+    return SPARK_ROOT + path;
+}
+
 // Inline-редактирование названия книги по двойному клику
 function makeEditable(el) {
     el.addEventListener('dblclick', function() {
@@ -119,11 +125,9 @@ document.querySelectorAll('.book-cover').forEach(function(el) {
     var btn = el.querySelector('.cover-delete');
     var bookId = el.dataset.bookId;
 
-    // Показываем крестик при наведении
     el.addEventListener('mouseenter', function() { btn.style.display = 'block'; });
     el.addEventListener('mouseleave', function() { btn.style.display = 'none'; });
 
-    // Клик по обложке — загрузка новой
     el.addEventListener('click', function(e) {
         if (e.target === btn) return;
         input.click();
@@ -135,20 +139,19 @@ document.querySelectorAll('.book-cover').forEach(function(el) {
         var form = new FormData();
         form.append('file', file);
 
-        fetch('/manage/' + bookId + '/cover', { method: 'POST', body: form })
+        fetch(sparkUrl('/manage/' + bookId + '/cover'), { method: 'POST', body: form })
             .then(function() {
-                img.src = '/manage/' + bookId + '/cover?' + Date.now();
+                img.src = sparkUrl('/manage/' + bookId + '/cover?') + Date.now();
             });
     });
 
-    // Крестик — удаление обложки
     btn.addEventListener('click', function(e) {
         e.stopPropagation();
         if (!confirm('Удалить обложку?')) return;
         var form = new FormData();
-        fetch('/manage/' + bookId + '/cover/delete', { method: 'POST', body: form })
+        fetch(sparkUrl('/manage/' + bookId + '/cover/delete'), { method: 'POST', body: form })
             .then(function() {
-                img.src = '/manage/' + bookId + '/cover?' + Date.now();
+                img.src = sparkUrl('/manage/' + bookId + '/cover?') + Date.now();
             });
     });
 });

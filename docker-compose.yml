@@ -6,6 +6,8 @@ services:
     platform: linux/arm64 
     profiles:
       - runtime
+    environment:
+      - SPARK_ROOT_PATH=${SPARK_ROOT_PATH:-}
     ports:
       - "8000:8000"
     volumes:

@@ -3,7 +3,6 @@
 import re
 from pathlib import Path
 
-import bisect
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
 from jinja2 import Environment, FileSystemLoader
@@ -14,11 +13,11 @@ from spark.adapters.catalog_repo import CatalogRepo
 
 def _trim_to_sentences(text: str) -> str:
     """Обрезает текст по границам предложений."""
-    # Ищем первое предложение: от начала до первого .!? с пробелом
     m = re.search(r"[.!?]\s", text)
     if m:
         text = text[: m.start() + 1]
     return text.strip()
+
 
 router = APIRouter(prefix="/books/{book_id}", tags=["lookup"])
 
@@ -26,6 +25,13 @@ router = APIRouter(prefix="/books/{book_id}", tags=["lookup"])
 def _jinja(request: Request):
     templates_dir = Path(__file__).parent.parent / "templates"
     return Environment(loader=FileSystemLoader(str(templates_dir)))
+
+
+def _render(request: Request, template: str, **kwargs):
+    """Рендерит шаблон с root_path."""
+    tmpl = _jinja(request).get_template(template)
+    kwargs.setdefault("root_path", request.app.state.root_path)
+    return HTMLResponse(tmpl.render(**kwargs))
 
 
 def _load_book(request: Request, book_id: str):
@@ -51,21 +57,15 @@ def lookup_audio(
 ):
     """UC-04: таймкод → страница."""
     book, entry = _load_book(request, book_id)
-    jinja = _jinja(request)
 
     if book is None:
-        tmpl = jinja.get_template("lookup_audio.html")
-        return HTMLResponse(
-            tmpl.render(book_id=book_id, error="Книга не найдена"),
-            status_code=404,
-        )
+        return _render(request, "lookup_audio.html",
+                       book_id=book_id, error="Книга не найдена", status_code=404)
 
     # Без параметров — просто показываем форму
     if time is None:
-        tmpl = jinja.get_template("lookup_audio.html")
-        return HTMLResponse(
-            tmpl.render(book_id=book_id, book_title=book.title)
-        )
+        return _render(request, "lookup_audio.html",
+                       book_id=book_id, book_title=book.title)
 
     # Парсим таймкод
     try:
@@ -78,33 +78,23 @@ def lookup_audio(
             hours, minutes, seconds = 0, 0, int(parts[0])
         total_seconds = hours * 3600 + minutes * 60 + seconds
     except (ValueError, IndexError):
-        tmpl = jinja.get_template("lookup_audio.html")
-        return HTMLResponse(
-            tmpl.render(
-                book_id=book_id, book_title=book.title,
-                error="Неверный формат таймкода. Используйте ЧЧ:ММ:СС",
-            )
-        )
+        return _render(request, "lookup_audio.html",
+                       book_id=book_id, book_title=book.title,
+                       error="Неверный формат таймкода. Используйте ЧЧ:ММ:СС")
 
     # Если указан файл — локальный таймкод, конвертируем в глобальный
-    local_seconds = None
     if file:
         for ap in book.audio_map.points:
             if ap.file_name == file:
                 total_seconds = ap.global_start_sec - ap.local_start_sec + total_seconds
-                local_seconds = total_seconds
                 break
 
     # Ищем аудиоточку
     ap = book.audio_map.lookup(total_seconds)
     if ap is None:
-        tmpl = jinja.get_template("lookup_audio.html")
-        return HTMLResponse(
-            tmpl.render(
-                book_id=book_id, book_title=book.title,
-                error="Таймкод вне диапазона аудиокниги",
-            )
-        )
+        return _render(request, "lookup_audio.html",
+                       book_id=book_id, book_title=book.title,
+                       error="Таймкод вне диапазона аудиокниги")
 
     # Ищем ближайшую страницу по reading_position
     rp = ap.reading_position
@@ -115,26 +105,21 @@ def lookup_audio(
         else:
             break
 
-    # Цитата из источника: ASR-транскрипт, обрезанный по предложениям
     quote = _trim_to_sentences(ap.segment_text)
     section = book.corpus.section_at(rp)
 
-    tmpl = jinja.get_template("lookup_audio.html")
-    return HTMLResponse(
-        tmpl.render(
-            book_id=book_id,
-            book_title=book.title,
-            input_time=time,
-            file_name=ap.file_name,
-            global_time=f"{int(ap.global_start_sec // 3600):02d}:{int((ap.global_start_sec % 3600) // 60):02d}:{int(ap.global_start_sec % 60):02d}",
-            local_time=f"{int(ap.local_start_sec // 60):02d}:{int(ap.local_start_sec % 60):02d}",
-            page_number=page.page_number if page else "?",
-            page_source=page.source if page else "?",
-            section=section,
-            quote=quote,
-            score=f"{ap.score:.3f}",
-        )
-    )
+    return _render(request, "lookup_audio.html",
+                   book_id=book_id,
+                   book_title=book.title,
+                   input_time=time,
+                   file_name=ap.file_name,
+                   global_time=f"{int(ap.global_start_sec // 3600):02d}:{int((ap.global_start_sec % 3600) // 60):02d}:{int(ap.global_start_sec % 60):02d}",
+                   local_time=f"{int(ap.local_start_sec // 60):02d}:{int(ap.local_start_sec % 60):02d}",
+                   page_number=page.page_number if page else "?",
+                   page_source=page.source if page else "?",
+                   section=section,
+                   quote=quote,
+                   score=f"{ap.score:.3f}")
 
 
 @router.get("/lookup/page")
@@ -145,31 +130,21 @@ def lookup_page(
 ):
     """UC-05: страница → таймкод."""
     book, entry = _load_book(request, book_id)
-    jinja = _jinja(request)
 
     if book is None:
-        tmpl = jinja.get_template("lookup_page.html")
-        return HTMLResponse(
-            tmpl.render(book_id=book_id, error="Книга не найдена"),
-            status_code=404,
-        )
+        return _render(request, "lookup_page.html",
+                       book_id=book_id, error="Книга не найдена", status_code=404)
 
     # Без параметра — просто показываем форму
     if page is None:
-        tmpl = jinja.get_template("lookup_page.html")
-        return HTMLResponse(
-            tmpl.render(book_id=book_id, book_title=book.title)
-        )
+        return _render(request, "lookup_page.html",
+                       book_id=book_id, book_title=book.title)
 
     pp = book.page_map.lookup(page)
     if pp is None:
-        tmpl = jinja.get_template("lookup_page.html")
-        return HTMLResponse(
-            tmpl.render(
-                book_id=book_id, book_title=book.title,
-                error=f"Страница {page} вне диапазона книги",
-            )
-        )
+        return _render(request, "lookup_page.html",
+                       book_id=book_id, book_title=book.title,
+                       error=f"Страница {page} вне диапазона книги")
 
     # Ищем ближайшую аудиоточку
     rp = pp.reading_position
@@ -180,7 +155,6 @@ def lookup_page(
         else:
             break
 
-    # Цитата из источника: FB2 (что напечатано на странице)
     quote = book.corpus.quote(rp)
     section = book.corpus.section_at(rp)
 
@@ -202,5 +176,4 @@ def lookup_page(
             "score": f"{ap.score:.3f}",
         })
 
-    tmpl = jinja.get_template("lookup_page.html")
-    return HTMLResponse(tmpl.render(**result))
+    return _render(request, "lookup_page.html", **result)

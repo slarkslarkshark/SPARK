@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="{{ root_path }}/favicon.svg">
     <title>SPARK — {% block title %}Синхронизация книги и аудио{% endblock %}</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -43,9 +43,9 @@
 </head>
 <body>
     <nav>
-        <a href="/">Книги</a>
-        <a href="/manage/import">Импорт</a>
-        <a href="/about">О проекте</a>
+        <a href="{{ root_path }}/">Книги</a>
+        <a href="{{ root_path }}/manage/import">Импорт</a>
+        <a href="{{ root_path }}/about">О проекте</a>
     </nav>
     {% block content %}{% endblock %}
 </body>

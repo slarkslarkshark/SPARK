@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -7,19 +8,19 @@ from jinja2 import Environment, FileSystemLoader
 from spark.web.routes import lookup, manage
 
 
-def create_app(data_root: str) -> FastAPI:
+def create_app(data_root: str, root_path: str = "") -> FastAPI:
     """Создаёт FastAPI-приложение runtime.
 
-    data_root — путь к data/ на диске:
-      data/
-      ├── catalog.sqlite
-      ├── books/    — импортированные книги
-      └── staging/  — временная область импорта
+    data_root — путь к data/ на диске.
+    root_path — базовый путь приложения (например, /spark).
     """
-    app = FastAPI(title="SPARK Runtime")
+    app = FastAPI(
+        title="SPARK Runtime",
+        root_path=root_path,
+    )
 
-    # Сохраняем конфигурацию в состоянии приложения
     app.state.data_root = Path(data_root)
+    app.state.root_path = root_path.rstrip("/")
 
     # Монтируем маршруты
     app.include_router(lookup.router)
@@ -30,17 +31,19 @@ def create_app(data_root: str) -> FastAPI:
     def _jinja():
         return Environment(loader=FileSystemLoader(str(templates_dir)))
 
-    def _catalog(request: Request):
-        from spark.adapters.catalog_repo import CatalogRepo
-        catalog_path = str(app.state.data_root / "catalog.sqlite")
-        return CatalogRepo(catalog_path).load()
+    def _render(template_name: str, **kwargs):
+        """Рендерит шаблон с root_path в контексте."""
+        tmpl = _jinja().get_template(template_name)
+        kwargs.setdefault("root_path", app.state.root_path)
+        return HTMLResponse(tmpl.render(**kwargs))
 
     # Главная страница
     @app.get("/")
     def index(request: Request):
-        catalog = _catalog(request)
-        tmpl = _jinja().get_template("index.html")
-        return HTMLResponse(tmpl.render(books=catalog.list_all()))
+        from spark.adapters.catalog_repo import CatalogRepo
+        catalog_path = str(app.state.data_root / "catalog.sqlite")
+        catalog = CatalogRepo(catalog_path).load()
+        return _render("index.html", books=catalog.list_all())
 
     # Иконка сайта
     @app.get("/favicon.ico")
@@ -60,7 +63,6 @@ def create_app(data_root: str) -> FastAPI:
     # О проекте
     @app.get("/about")
     def about():
-        tmpl = _jinja().get_template("about.html")
-        return HTMLResponse(tmpl.render())
+        return _render("about.html")
 
     return app
